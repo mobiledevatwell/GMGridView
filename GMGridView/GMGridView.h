@@ -167,10 +167,12 @@ typedef enum
 
 @optional
 // Sorting started/ended - indexes are not specified on purpose (not the right place to update data structure)
-- (void)GMGridView:(GMGridView *)gridView didStartMovingCell:(GMGridViewCell *)cell;
+- (void)GMGridView:(GMGridView *)gridView didStartMovingCell:(GMGridViewCell *)cell atIndex:(NSInteger)index;
 - (void)GMGridView:(GMGridView *)gridView didEndMovingCell:(GMGridViewCell *)cell;
 // Enable/Disable the shaking behavior of an item being moved
 - (BOOL)GMGridView:(GMGridView *)gridView shouldAllowShakingBehaviorWhenMovingCell:(GMGridViewCell *)view atIndex:(NSInteger)index;
+- (GMGridViewCell *)GMGridView:(GMGridView*)gridView createMovingCell:(GMGridViewCell *)cell;
+- (BOOL)GMGridView:(GMGridView *)gridView shouldGrabCellAtPoint:(CGPoint)point andPosition:(NSInteger)position;
 
 @end
 

@@ -60,6 +60,7 @@ static const UIViewAnimationOptions kDefaultAnimationOptions = UIViewAnimationOp
     
     // Moving (sorting) control vars
     GMGridViewCell *_sortMovingItem;
+    GMGridViewCell *_sortOriginalItem;
     NSInteger _sortFuturePosition;
     BOOL _autoScrollActive;
     
@@ -97,6 +98,7 @@ static const UIViewAnimationOptions kDefaultAnimationOptions = UIViewAnimationOp
 - (void)sortingMoveDidContinueToPoint:(CGPoint)point;
 - (void)sortingMoveDidStopAtPoint:(CGPoint)point;
 - (void)sortingAutoScrollMovementCheck;
+- (void)sortingFinalize;
 
 // Transformation control
 - (void)transformingGestureDidBeginWithGesture:(UIGestureRecognizer *)gesture;
@@ -705,9 +707,27 @@ static const UIViewAnimationOptions kDefaultAnimationOptions = UIViewAnimationOp
 {
     NSInteger position = [self.layoutStrategy itemPositionFromLocation:point];
     
-    GMGridViewCell *item = [self cellForItemAtIndex:position];
+    if([self.sortingDelegate respondsToSelector:@selector(GMGridView:shouldGrabCellAtPoint:andPosition:)]) {
+        if(![self.sortingDelegate GMGridView:self shouldGrabCellAtPoint:point andPosition:position]) {
+            // delegate says we shouldn't get the cell given this point, so do nothing
+            return;
+        }
+    }
     
-    [self bringSubviewToFront:item];
+    _sortOriginalItem = [self cellForItemAtIndex:position];
+    NSLog(@"Picking up item %d from rect %@", position, NSStringFromCGRect(_sortOriginalItem.frame));
+    
+    [self bringSubviewToFront:_sortOriginalItem];
+    
+    if([self.sortingDelegate respondsToSelector:@selector(GMGridView:createMovingCell:)]) {
+        _sortMovingItem = [self.sortingDelegate GMGridView:self createMovingCell:_sortOriginalItem];
+    } else {
+        _sortMovingItem = _sortOriginalItem;
+    }
+    
+    [_sortOriginalItem removeFromSuperview];
+    
+    /*
     _sortMovingItem = item;
     
     CGRect frameInMainView = [self convertRect:_sortMovingItem.frame toView:self.mainSuperView];
@@ -715,18 +735,29 @@ static const UIViewAnimationOptions kDefaultAnimationOptions = UIViewAnimationOp
     [_sortMovingItem removeFromSuperview];
     _sortMovingItem.frame = frameInMainView;
     [self.mainSuperView addSubview:_sortMovingItem];
+    */
+        
+    UIWindow *window = [UIApplication sharedApplication].keyWindow;
+    UIView *rootView = [[window subviews] objectAtIndex:0];
     
-    _sortFuturePosition = _sortMovingItem.tag - kTagOffset;
+    CGRect frameInRootView = [self convertRect:_sortMovingItem.frame toView:rootView];
+    
+    _sortMovingItem.frame = frameInRootView;
+    [rootView addSubview:_sortMovingItem];
+    [rootView bringSubviewToFront:_sortMovingItem];
+    
+    _sortFuturePosition = _sortOriginalItem.tag - kTagOffset;
     _sortMovingItem.tag = 0;
+    _sortOriginalItem.tag = 0;
     
-    if ([self.sortingDelegate respondsToSelector:@selector(GMGridView:didStartMovingCell:)])
+    if ([self.sortingDelegate respondsToSelector:@selector(GMGridView:didStartMovingCell:atIndex:)])
     {
-        [self.sortingDelegate GMGridView:self didStartMovingCell:_sortMovingItem];
+        [self.sortingDelegate GMGridView:self didStartMovingCell:_sortOriginalItem atIndex:position];
     }
     
     if ([self.sortingDelegate respondsToSelector:@selector(GMGridView:shouldAllowShakingBehaviorWhenMovingCell:atIndex:)]) 
     {
-        [_sortMovingItem shake:[self.sortingDelegate GMGridView:self shouldAllowShakingBehaviorWhenMovingCell:_sortMovingItem atIndex:position]];
+        [_sortMovingItem shake:[self.sortingDelegate GMGridView:self shouldAllowShakingBehaviorWhenMovingCell:_sortOriginalItem atIndex:position]];
     }
     else
     {
@@ -739,8 +770,11 @@ static const UIViewAnimationOptions kDefaultAnimationOptions = UIViewAnimationOp
     [_sortMovingItem shake:NO];
     
     _sortMovingItem.tag = _sortFuturePosition + kTagOffset;
+    _sortOriginalItem.tag = _sortFuturePosition + kTagOffset;
     
-    CGRect frameInScroll = [self.mainSuperView convertRect:_sortMovingItem.frame toView:self];
+    UIWindow *window = [UIApplication sharedApplication].keyWindow;
+    UIView *rootView = [[window subviews] objectAtIndex:0];
+    CGRect frameInScroll = [rootView convertRect:_sortMovingItem.frame toView:self];
     
     [_sortMovingItem removeFromSuperview];
     _sortMovingItem.frame = frameInScroll;
@@ -757,17 +791,32 @@ static const UIViewAnimationOptions kDefaultAnimationOptions = UIViewAnimationOp
                          _sortMovingItem.frame = newFrame;
                      }
                      completion:^(BOOL finished){
-                         if ([self.sortingDelegate respondsToSelector:@selector(GMGridView:didEndMovingCell:)])
-                         {
-                             [self.sortingDelegate GMGridView:self didEndMovingCell:_sortMovingItem];
-                         }
-                         
-                         _sortMovingItem = nil;
-                         _sortFuturePosition = GMGV_INVALID_POSITION;
-                         
-                         [self setSubviewsCacheAsInvalid];
+                         [self performSelectorOnMainThread:@selector(sortingFinalize) withObject:nil waitUntilDone:NO];
                      }
      ];
+}
+
+- (void)sortingFinalize {
+    // swap out moving cell for the original, in case it's different
+    NSLog(@"Orginal cell frame is %@", NSStringFromCGRect(_sortOriginalItem.frame));
+    NSLog(@"Moving cell frame is %@", NSStringFromCGRect(_sortMovingItem.frame));
+    
+    _sortOriginalItem.frame = _sortMovingItem.frame;
+    [_sortMovingItem removeFromSuperview];
+    [self addSubview:_sortOriginalItem];
+    
+    NSLog(@"Original item now has frame %@", NSStringFromCGRect(_sortOriginalItem.frame));
+    
+    if ([self.sortingDelegate respondsToSelector:@selector(GMGridView:didEndMovingCell:)])
+    {
+        [self.sortingDelegate GMGridView:self didEndMovingCell:_sortOriginalItem];
+    }
+    
+    _sortMovingItem = nil;
+    _sortOriginalItem = nil;
+    _sortFuturePosition = GMGV_INVALID_POSITION;
+    
+    [self setSubviewsCacheAsInvalid];
 }
 
 - (void)sortingMoveDidContinueToPoint:(CGPoint)point
@@ -775,20 +824,20 @@ static const UIViewAnimationOptions kDefaultAnimationOptions = UIViewAnimationOp
     int position = [self.layoutStrategy itemPositionFromLocation:point];
     int tag = position + kTagOffset;
     
-    if (position != GMGV_INVALID_POSITION && position != _sortFuturePosition && position < _numberTotalItems) 
+    if (position != GMGV_INVALID_POSITION && position != _sortFuturePosition && position < _numberTotalItems)
     {
         BOOL positionTaken = NO;
         
         for (UIView *v in [self itemSubviews])
         {
-            if (v != _sortMovingItem && v.tag == tag) 
+            if (v != _sortMovingItem && v.tag == tag)
             {
                 positionTaken = YES;
                 break;
             }
         }
         
-        if (positionTaken)
+        if (positionTaken)  
         {
             switch (self.style) 
             {
@@ -801,6 +850,10 @@ static const UIViewAnimationOptions kDefaultAnimationOptions = UIViewAnimationOp
                             if ((v.tag == tag || (v.tag < tag && v.tag >= _sortFuturePosition + kTagOffset)) && v != _sortMovingItem ) 
                             {
                                 v.tag = v.tag - 1;
+                                if(v == _sortMovingItem) {
+                                    // apply the same tag change to the original item
+                                    _sortOriginalItem.tag = _sortOriginalItem.tag - 1;
+                                }
                                 [self sendSubviewToBack:v];
                             }
                         }
@@ -812,6 +865,10 @@ static const UIViewAnimationOptions kDefaultAnimationOptions = UIViewAnimationOp
                             if ((v.tag == tag || (v.tag > tag && v.tag <= _sortFuturePosition + kTagOffset)) && v != _sortMovingItem) 
                             {
                                 v.tag = v.tag + 1;
+                                if(v == _sortMovingItem) {
+                                    // apply the same tag change to the original item
+                                    _sortOriginalItem.tag = _sortOriginalItem.tag + 1;
+                                }
                                 [self sendSubviewToBack:v];
                             }
                         }
@@ -1301,7 +1358,7 @@ static const UIViewAnimationOptions kDefaultAnimationOptions = UIViewAnimationOp
     void (^layoutBlock)(void) = ^{
         for (UIView *view in [self itemSubviews])
         {        
-            if (view != _sortMovingItem && view != _transformingItem) 
+            if (view != _sortMovingItem && view != _transformingItem)
             {
                 NSInteger index = view.tag - kTagOffset;
                 CGPoint origin = [self.layoutStrategy originForItemAtPosition:index];
@@ -1310,6 +1367,7 @@ static const UIViewAnimationOptions kDefaultAnimationOptions = UIViewAnimationOp
                 // IF statement added for performance reasons (Time Profiling in instruments)
                 if (!CGRectEqualToRect(newFrame, view.frame)) 
                 {
+                    NSLog(@"Moving item to index %d: %@ to %@", index, NSStringFromCGRect(view.frame), NSStringFromCGRect(newFrame));
                     view.frame = newFrame;
                 }
             }
