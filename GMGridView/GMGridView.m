@@ -32,10 +32,6 @@
 #import "GMGridViewLayoutStrategies.h"
 #import "UIGestureRecognizer+GMGridViewAdditions.h"
 
-static const NSInteger kTagOffset = 50;
-static const CGFloat kDefaultAnimationDuration = 0.3;
-static const UIViewAnimationOptions kDefaultAnimationOptions = UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction;
-
 
 //////////////////////////////////////////////////////////////
 #pragma mark - Private interface
@@ -62,9 +58,6 @@ static const UIViewAnimationOptions kDefaultAnimationOptions = UIViewAnimationOp
     GMGridViewCell *_sortMovingItem;
     NSInteger _sortFuturePosition;
     BOOL _autoScrollActive;
-    
-    CGPoint _minPossibleContentOffset;
-    CGPoint _maxPossibleContentOffset;
     
     // Transforming control vars
     GMGridViewCell *_transformingItem;
@@ -105,12 +98,9 @@ static const UIViewAnimationOptions kDefaultAnimationOptions = UIViewAnimationOp
 
 // Helpers & more
 - (void)recomputeSizeAnimated:(BOOL)animated;
-- (void)relayoutItemsAnimated:(BOOL)animated;
-- (NSArray *)itemSubviews;
 - (GMGridViewCell *)cellForItemAtIndex:(NSInteger)position;
 - (GMGridViewCell *)newItemSubViewForPosition:(NSInteger)position;
 - (NSInteger)positionForItemSubview:(GMGridViewCell *)view;
-- (void)setSubviewsCacheAsInvalid;
 - (CGRect)rectForPoint:(CGPoint)point inPaggingMode:(BOOL)pagging;
 
 // Lazy loading

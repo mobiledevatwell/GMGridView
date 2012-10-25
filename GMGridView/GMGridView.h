@@ -57,6 +57,10 @@ typedef enum
     GMGridViewItemAnimationScroll = 1<<7 // scroll to the item before showing the animation
 } GMGridViewItemAnimation;
 
+static const NSInteger kTagOffset = 50;
+static const CGFloat kDefaultAnimationDuration = 0.3;
+static const UIViewAnimationOptions kDefaultAnimationOptions = UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction;
+
 //////////////////////////////////////////////////////////////
 #pragma mark Interface GMGridView
 //////////////////////////////////////////////////////////////
@@ -87,6 +91,10 @@ typedef enum
 @property (nonatomic) BOOL enableEditOnLongPress;                     // Default is NO
 @property (nonatomic) BOOL disableEditOnEmptySpaceTap;                // Default is NO
 
+
+@property (nonatomic) CGPoint minPossibleContentOffset;
+@property (nonatomic) CGPoint maxPossibleContentOffset;
+
 @property (nonatomic, readonly) UIScrollView *scrollView __attribute__((deprecated)); // The grid now inherits directly from UIScrollView
 
 // Reusable cells
@@ -95,6 +103,8 @@ typedef enum
 
 // Cells
 - (GMGridViewCell *)cellForItemAtIndex:(NSInteger)position;           // Might return nil if cell not loaded yet
+- (NSArray *)itemSubviews;
+- (void)setSubviewsCacheAsInvalid;
 
 // Actions
 - (void)reloadData;
@@ -110,6 +120,7 @@ typedef enum
 
 // Force the grid to update properties in an (probably) animated way.
 - (void)layoutSubviewsWithAnimation:(GMGridViewItemAnimation)animation;
+- (void)relayoutItemsAnimated:(BOOL)animated;
 
 @end
 
