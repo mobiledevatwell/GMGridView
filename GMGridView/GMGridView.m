@@ -1287,13 +1287,17 @@
 }
 
 - (void)relayoutItemsAnimated:(BOOL)animated
-{    
+{
     void (^layoutBlock)(void) = ^{
         for (UIView *view in [self itemSubviews])
         {        
-            if (view != _sortMovingItem && view != _transformingItem) 
+            if (view != _sortMovingItem && view != _transformingItem)
             {
                 NSInteger index = view.tag - kTagOffset;
+                
+                // don't lay out the item if it's not in a valid position
+                if(index == GMGV_INVALID_POSITION) continue;
+                
                 CGPoint origin = [self.layoutStrategy originForItemAtPosition:index];
                 CGRect newFrame = CGRectMake(origin.x, origin.y, _itemSize.width, _itemSize.height);
                 
@@ -1306,7 +1310,7 @@
         }
     };
     
-    if (animated) 
+    if (animated)
     {
         [UIView animateWithDuration:kDefaultAnimationDuration 
                               delay:0
